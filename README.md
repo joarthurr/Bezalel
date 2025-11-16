@@ -19,7 +19,8 @@ Bezalel/
 |   └── Relatorio.py
 |
 ├── data/                # Pasta de informações sobre o usuário
-|   └── relatorio.txt
+|   ├── relatorio.txt
+|   └── dados.py
 |
 ├── config/              # Pasta de configurações do sistema
 |   └── settings.py
