@@ -4,7 +4,7 @@ Bezalel (batizado assim em referência ao artesão israelita bíblico) é um sim
 Este projeto é parte constituinte da disciplina de Programação Orientada a Objetos, ministrada pelo professor Jayr Pereira na Universidade Federal do Cariri.
 
 ## 🛠 Pré-requisitos
-- Python 3.0
+- Python 3
 
 ## ⚙ Estrutura
 ```
