@@ -3,6 +3,12 @@ Bezalel (batizado assim em referência ao artesão israelita bíblico) é um sim
 
 Este projeto é parte constituinte da disciplina de Programação Orientada a Objetos, ministrada pelo professor Jayr Pereira na Universidade Federal do Cariri.
 
+## 🔭 Funcionalidades
+- O projeto tem como objetivo permitir a *criação de perguntas* e *montagem de quizzes* pelos **usuários**.
+- Cada *pergunta* possuirá um **tema**, **enunciado**, **nível de dificuldade** e um número de 3 a 5 **alternativas**.
+- O *quiz* possuirá **título**, **pontuação máximo** e será composto por um banco de **perguntas**.
+- Em cada *tentativa* do *usuário* de responder um *quiz*, dados como **ranking**, **desempenho**, **sua evolução** e **questões mais erradas** serão disponibilizados meio de *relatórios*.
+
 ## 🛠 Pré-requisitos
 - Python 3
 
