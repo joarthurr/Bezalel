@@ -1,9 +1,8 @@
+from __future__ import annotations
 import datetime
-from modules.Usuario import Usuario
-from modules.Quiz import Quiz
 
 class Tentativa:
-    def __init__(self, usuario: Usuario, quiz: Quiz, respostasDadas: list[str], pontuacao: float, tempoGasto: int, dataInicio: datetime, dataFim: datetime):
+    def __init__(self, usuario: "Usuario", quiz: "Quiz", respostasDadas: list[str], pontuacao: float, tempoGasto: int, dataInicio: datetime, dataFim: datetime):
         self.usuario = usuario
         self.quiz = quiz
         self.respostasDadas = respostasDadas
