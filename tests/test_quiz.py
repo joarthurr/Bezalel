@@ -29,9 +29,14 @@ def test_titulo_vazio_falha():
         Quiz("", [p], 3, 60)
 
 
-def test_quiz_deve_ter_ao_menos_uma_pergunta():
-    with pytest.raises(ValueError):
-        Quiz("Quiz", [], 3, 60)
+def test_quiz_pode_iniciar_vazio():
+    """
+    Teste ajustado: Agora é PERMITIDO criar um quiz com lista vazia.
+    Isso é necessário para o carregamento do banco de dados e criação incremental.
+    """
+    q = Quiz("Quiz Vazio", [], 3, 60)
+    assert len(q) == 0
+    assert q.perguntas == []
 
 
 def test_adicionar_pergunta():

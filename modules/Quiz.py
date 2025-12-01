@@ -1,9 +1,9 @@
 from modules.Pergunta import Pergunta
 
 class Quiz:
-    def __init__(self, titulo: str, perguntas: list[Pergunta], tentativasLimite: int, tempoLimite: int):
+    def __init__(self, titulo: str, perguntas: list[Pergunta] = None, tentativasLimite: int = 3, tempoLimite: int = 60):
         self.titulo = titulo
-        self.perguntas = perguntas
+        self.perguntas = perguntas if perguntas is not None else []
         self.tentativasLimite = tentativasLimite
         self.tempoLimite = tempoLimite
 
@@ -32,8 +32,8 @@ class Quiz:
             lista_perguntas = list(valor)
         except TypeError:
             raise TypeError("As perguntas devem ser fornecidas em uma lista.")
-        if not lista_perguntas:
-            raise ValueError("O quiz deve conter pelo menos uma pergunta.")
+        #if not lista_perguntas:
+        #    raise ValueError("O quiz deve conter pelo menos uma pergunta.")
         
         for pergunta in lista_perguntas:
             if not (hasattr(pergunta, "enunciado") and hasattr(pergunta, "alternativas") and hasattr(pergunta, "indiceCorreta")):
@@ -97,3 +97,21 @@ class Quiz:
                     self.perguntas == other.perguntas)
         except AttributeError:
             return False
+
+    def to_dict(self) -> dict:
+        return {
+            "titulo": self.titulo,
+            "perguntas": [p.to_dict() for p in self.perguntas],
+            "tentativasLimite": self.tentativasLimite,
+            "tempoLimite": self.tempoLimite
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'Quiz':
+        perguntas_recuperadas = [Pergunta.from_dict(p) for p in data.get("perguntas", [])]
+        return cls(
+            titulo=data["titulo"],
+            perguntas=perguntas_recuperadas,
+            tentativasLimite=data.get("tentativasLimite", 3),
+            tempoLimite=data.get("tempoLimite", 30)
+        )
