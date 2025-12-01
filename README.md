@@ -36,7 +36,7 @@ Bezalel/
 │
 ├── tests/                    # Pasta contendo testes automatizados
 │   ├── test_pergunta.py
-│   └── test_quiz.py
+│   └── outros testes automatizados
 │
 ├── config/                   # Arquivos de configuração
 │   └── settings.py
