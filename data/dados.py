@@ -2,8 +2,9 @@ import json
 import os
 from modules.Usuario import Usuario
 from modules.Quiz import Quiz
-    
-ARQUIVO_DB = "db.json"
+
+DIRETORIO_ATUAL = os.path.dirname(os.path.abspath(__file__))
+ARQUIVO_DB = os.path.join(DIRETORIO_ATUAL, "relatorio.json")
 
 def salvar_dados(usuarios: list[Usuario], quizzes: list[Quiz]):
     dados = {
@@ -12,6 +13,9 @@ def salvar_dados(usuarios: list[Usuario], quizzes: list[Quiz]):
     }
     
     try:
+
+        os.makedirs(os.path.dirname(ARQUIVO_DB), exist_ok=True)
+        
         with open(ARQUIVO_DB, "w", encoding="utf-8") as f:
             json.dump(dados, f, indent=4, ensure_ascii=False)
         print("Dados salvos com sucesso.")

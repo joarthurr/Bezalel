@@ -103,3 +103,22 @@ class Pergunta:
                     self.tema == other.tema)
         except AttributeError:
             return False
+        
+    def to_dict(self):
+        return {
+        "enunciado": self.enunciado,
+        "alternativas": self.alternativas,
+        "indiceCorreta": self.indiceCorreta,
+        "dificuldade": self.dificuldade,
+        "tema": self.tema
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+        data["enunciado"],
+        data["alternativas"],
+        data["indiceCorreta"],
+        data["dificuldade"],
+        data["tema"]
+        )

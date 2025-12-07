@@ -1,13 +1,20 @@
 from __future__ import annotations
 import datetime
-
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from modules.Usuario import Usuario
     from modules.Quiz import Quiz
 
+PESOS = {"fácil": 1, "médio": 2, "difícil": 3, "FÁCIL": 1, "MÉDIO": 2, "DIFÍCIL": 3}
+NOTA_CORTE = 70.0
+
 class Tentativa:
     def __init__(self, usuario: Usuario, quiz: Quiz, respostasDadas: list[int] = None, pontuacao: float = 0.0, tempoGasto: int = 0, dataInicio: datetime.datetime = None, dataFim: datetime.datetime = None, concluida: bool = None):
+        
+        if dataInicio is None and not usuario.pode_realizar_quiz(quiz):
+             raise ValueError(f"O limite de tentativas para o quiz '{quiz.titulo}' foi atingido.")
+
         self.usuario = usuario
         self.quiz = quiz
         self.respostasDadas = respostasDadas if respostasDadas is not None else []
@@ -17,34 +24,50 @@ class Tentativa:
         self.dataFim = dataFim
         self.concluida = False if concluida is None else concluida
 
-    """Armazena a resposta dada pelo usuário para uma pergunta."""
+    @property
+    def aprovado(self) -> bool:
+        """Verifica aprovação baseado na constante de configuração."""
+        return self.pontuacao >= NOTA_CORTE
+
     def registrar_resposta(self, indice_pergunta: int, indice_resposta: int):
+        """Armazena a resposta, bloqueando edições se a tentativa já acabou."""
+        if self.concluida:
+            raise ValueError("Não é possível alterar respostas de uma tentativa concluída.")
+        
         while len(self.respostasDadas) <= indice_pergunta:
             self.respostasDadas.append(-1)
         self.respostasDadas[indice_pergunta] = indice_resposta
     
-    """Finaliza a tentativa calculando pontuação e tempo."""
     def finalizar(self):
+        """Calcula pontuação e tempo. Zera nota se estourar tempo."""
         if self.concluida:
             return
         
         self.dataFim = datetime.datetime.now()
-        tempoInt = self.dataFim - self.dataInicio
-        self.tempoGasto = int(tempoInt.total_seconds())
-
-        perguntas = self.quiz.perguntas
-        totais = len(perguntas)
+        delta = self.dataFim - self.dataInicio
+        self.tempoGasto = int(delta.total_seconds())
         
-        if totais == 0:
+        tempo_limite_seg = self.quiz.tempoLimite * 60
+        
+        if self.tempoGasto > tempo_limite_seg:
             self.pontuacao = 0.0
         else:
-            corretas = 0
-            for i, pergunta in enumerate(perguntas):
+            pontos_obtidos = 0
+            pontos_totais_possiveis = 0
+            
+            for i, pergunta in enumerate(self.quiz.perguntas):
+                peso = PESOS.get(pergunta.dificuldade, 1)
+                pontos_totais_possiveis += peso
+
                 if i < len(self.respostasDadas):
-                    indice_resposta_usuario = self.respostasDadas[i]
-                    if indice_resposta_usuario != -1 and indice_resposta_usuario == pergunta.indiceCorreta:
-                        corretas += 1
-            self.pontuacao = (corretas / totais) * 100.0
+                    idx_resp = self.respostasDadas[i]
+                    if idx_resp != -1 and idx_resp == pergunta.indiceCorreta:
+                        pontos_obtidos += peso
+            
+            if pontos_totais_possiveis > 0:
+                self.pontuacao = (pontos_obtidos / pontos_totais_possiveis) * 100.0
+            else:
+                self.pontuacao = 0.0
 
         self.concluida = True
         self.usuario.adicionar_tentativa(self)
