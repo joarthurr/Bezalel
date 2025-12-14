@@ -29,10 +29,14 @@ def ler_inteiro(mensagem: str):
             print("Entrada invalida. Digite um numero inteiro.")
 
 def ler_input_com_tempo(mensagem: str, tentativa: Tentativa) -> str | None:
-    """Retorna a string digitada ou None se o tempo acabar."""
+    """
+    Le a entrada do usuario caractere por caractere, verificando o tempo
+    a todo momento. Retorna a string digitada ou None se o tempo acabar.
+    """
     print(mensagem, end='', flush=True)
     
     if msvcrt is None:
+        print("[AVISO: Modo Timer indisponivel - usando input padrao]")
         return input()
 
     entrada = []
@@ -43,8 +47,13 @@ def ler_input_com_tempo(mensagem: str, tentativa: Tentativa) -> str | None:
             return None
 
         if msvcrt.kbhit():
-            char = msvcrt.getwche()
+            char_bytes = msvcrt.getwch()
             
+            if isinstance(char_bytes, bytes):
+                char = char_bytes.decode('utf-8', 'ignore')
+            else:
+                char = char_bytes
+
             if char in ('\r', '\n'):
                 print()
                 return "".join(entrada)
@@ -52,11 +61,13 @@ def ler_input_com_tempo(mensagem: str, tentativa: Tentativa) -> str | None:
             elif char == '\b':
                 if entrada:
                     entrada.pop()
-                    sys.stdout.write(' \b')
+                    sys.stdout.write('\b \b')
                     sys.stdout.flush()
             
-            else:
+            elif char.isprintable():
                 entrada.append(char)
+                sys.stdout.write(char)
+                sys.stdout.flush()
         
         time.sleep(0.05)
 
@@ -64,7 +75,7 @@ def ler_inteiro_com_tempo(mensagem: str, tentativa: Tentativa) -> int:
     """Wrapper para converter o input temporal em inteiro."""
     while True:
         if tentativa.verificar_tempo_excedido():
-            return -1
+            return -1 
             
         resultado = ler_input_com_tempo(mensagem, tentativa)
         
@@ -75,6 +86,7 @@ def ler_inteiro_com_tempo(mensagem: str, tentativa: Tentativa) -> int:
             return int(resultado)
         except ValueError:
             print("Entrada invalida. Digite um numero.")
+
 
 def menu_principal():
     limpar_tela()
@@ -267,15 +279,15 @@ def fluxo_responder_quiz(usuarios: list[Usuario], quizzes: list[Quiz]):
         pausar()
         return
     
+    if msvcrt:
+        print("[DEBUG: Sistema de Timer Ativo]")
+    
     tempo_esgotado = False
     
     for i, pergunta in enumerate(quiz.perguntas):
         if tentativa.verificar_tempo_excedido():
-            print("\nTEMPO ACABADO! O quiz foi encerrado automaticamente.")
-            tentativa.finalizar()
-            pausar()
-            return
-
+            tempo_esgotado = True
+            break
             
         limpar_tela()
         print(f"QUESTAO {i+1}/{len(quiz)}: {pergunta.enunciado}")
@@ -289,11 +301,8 @@ def fluxo_responder_quiz(usuarios: list[Usuario], quizzes: list[Quiz]):
             r_int = ler_inteiro_com_tempo("\nSua resposta: ", tentativa)
             
             if r_int == -1 and tentativa.verificar_tempo_excedido():
-                print("\nTEMPO ACABADO! O quiz foi encerrado automaticamente.")
-                tentativa.finalizar()
-                pausar()
-                return
-
+                tempo_esgotado = True
+                break
             
             if 0 <= r_int < len(pergunta.alternativas):
                 tentativa.registrar_resposta(i, r_int)
