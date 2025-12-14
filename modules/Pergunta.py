@@ -1,4 +1,6 @@
-class Pergunta:
+from modules.Mixins import JsonSerializableMixin, ExibivelMixin
+
+class Pergunta(JsonSerializableMixin, ExibivelMixin):
     def __init__(self, enunciado: str, alternativas: list[str], indiceCorreta: int, dificuldade: str, tema: str):
         self.enunciado = enunciado
         self.alternativas = alternativas

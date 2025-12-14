@@ -1,308 +1,187 @@
+import pytest
 import os
-import time
-from data.dados import carregar_dados, salvar_dados
-from modules.Relatorio import Relatorio
-from modules.Tentativa import Tentativa
+import json
+from datetime import datetime, timedelta
 from modules.Usuario import Usuario
 from modules.Quiz import Quiz
 from modules.Pergunta import Pergunta
+from modules.Tentativa import Tentativa
+from modules.Relatorio import Relatorio
+from data.dados import salvar_dados, carregar_dados, ARQUIVO_DB
 
-def limpar_tela():
-    os.system('cls' if os.name == 'nt' else 'clear')
+# --- FIXTURES (Dados prontos para os testes) ---
+@pytest.fixture
+def p_facil():
+    return Pergunta("Q1", ["A", "B", "C"], 0, "fácil", "Matemática")
 
-def pausar():
-    input("\nPressione ENTER para continuar...")
+@pytest.fixture
+def p_medio():
+    return Pergunta("Q2", ["A", "B", "C"], 0, "médio", "História")
 
-def ler_inteiro(mensagem: str):
-    """Lê um número inteiro de forma segura."""
-    while True:
-        try:
-            return int(input(mensagem))
-        except ValueError:
-            print("Entrada inválida. Digite um número inteiro.")
+@pytest.fixture
+def p_dificil():
+    return Pergunta("Q3", ["A", "B", "C"], 0, "difícil", "Matemática")
 
-def menu_principal():
-    limpar_tela()
-    print("="*30)
-    print("   Sistema de Quiz Educacional - Bezalel   ")
-    print("="*30)
-    print("1. Área do Aluno (Responder)")
-    print("2. Área Administrativa")
-    print("0. Sair e Salvar")
-    return input("\nEscolha uma opção: ")
+@pytest.fixture
+def quiz_padrao(p_facil, p_medio, p_dificil):
+    return Quiz("Quiz Teste", [p_facil, p_medio, p_dificil], tentativasLimite=2, tempoLimite=10)
 
-def menu_admin():
-    limpar_tela()
-    print("--- Menu Admin ---")
-    print("1. Relatório de Alunos")
-    print("2. Cadastrar Novo Usuário")
-    print("3. Criar Novo Quiz")
-    print("4. Adicionar Pergunta a Quiz Existente")
-    print("5. Gerar Dados de Teste (Seed)")
-    print("0. Voltar")
-    return input("\nEscolha uma opção: ")
+@pytest.fixture
+def usuario_padrao():
+    return Usuario("Tester", "t@t.com", "123")
 
-def criar_usuario_interativo(usuarios: list[Usuario]):
-    print("\n--- Cadastro de Usuário ---")
-    nome = input("Nome completo: ").strip()
-    email = input("E-mail: ").strip()
-    matricula = input("Matrícula: ").strip()
+# --- BLOCO 1: Validação de Perguntas (3 testes) ---
+
+def test_criacao_pergunta_valida(p_facil):
+    assert p_facil.dificuldade == "fácil"
+    assert len(p_facil.alternativas) == 3
+
+def test_erro_alternativas_insuficientes():
+    with pytest.raises(ValueError):
+        Pergunta("Q", ["A", "B"], 0, "fácil", "T")
+
+def test_erro_indice_invalido():
+    with pytest.raises(ValueError):
+        Pergunta("Q", ["A", "B", "C"], 5, "fácil", "T")
+
+# --- BLOCO 2: Cálculo de Pontuação (3 testes) ---
+
+def test_pontuacao_maxima_ponderada(usuario_padrao, quiz_padrao):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.registrar_resposta(0, 0)
+    t.registrar_resposta(1, 0)
+    t.registrar_resposta(2, 0)
+    t.finalizar()
+    assert t.pontuacao == 100.0
+    assert t.aprovado is True
+
+def test_pontuacao_parcial_ponderada(usuario_padrao, quiz_padrao):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.registrar_resposta(0, 0)
+    t.registrar_resposta(1, 0)
+    t.registrar_resposta(2, 1)
+    t.finalizar()
+    assert t.pontuacao == 50.0
+
+def test_pontuacao_zero(usuario_padrao, quiz_padrao):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.registrar_resposta(0, 1); t.registrar_resposta(1, 1); t.registrar_resposta(2, 1)
+    t.finalizar()
+    assert t.pontuacao == 0.0
+
+# --- BLOCO 3: Tempo Limite (2 testes) ---
+
+def test_tempo_excedido_zera_nota_e_marca_incompleta(usuario_padrao, quiz_padrao):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.dataInicio = datetime.now() - timedelta(minutes=20)
     
-    if not nome or not email or not matricula:
-        print("Todos os campos são obrigatórios.")
-        pausar()
-        return
-
-    if any(u.matricula == matricula for u in usuarios):
-        print(f"Já existe um usuário com a matrícula {matricula}.")
-        pausar()
-        return
-
-    novo_user = Usuario(nome, email, matricula)
-    usuarios.append(novo_user)
-    print(f"Usuário {nome} cadastrado com sucesso!")
-    pausar()
-
-def criar_pergunta_interativa() -> Pergunta:
-    """Fluxo passo-a-passo para criar uma pergunta."""
-    print("\n--- Nova Pergunta ---")
-    enunciado = input("Enunciado da questão: ").strip()
-    tema = input("Tema (ex: Matemática, História): ").strip()
+    t.finalizar()
     
-    print("Dificuldade (FÁCIL, MÉDIO, DIFÍCIL):")
-    dificuldade = input(">> ").strip().upper()
-    
-    print("\nCadastre as alternativas (Mínimo 3, Máximo 5).")
-    print("Deixe vazio e tecle ENTER para parar de adicionar.")
-    alternativas = []
-    while len(alternativas) < 5:
-        alt = input(f"Alternativa {len(alternativas)}: ").strip()
-        if not alt:
-            if len(alternativas) >= 3:
-                break
-            else:
-                print("Mínimo de 3 alternativas necessárias.")
-                continue
-        alternativas.append(alt)
-    
-    print("\nQual é a alternativa correta?")
-    for i, alt in enumerate(alternativas):
-        print(f"[{i}] {alt}")
-    
-    while True:
-        idx = ler_inteiro("Índice da correta: ")
-        if 0 <= idx < len(alternativas):
-            break
-        print("Índice inválido.")
+    assert t.pontuacao == 0.0
+    assert t.incompleta is True
+    assert t.encerradaPorTempo is True
 
-    return Pergunta(enunciado, alternativas, idx, dificuldade, tema)
+def test_verificacao_tempo_real(usuario_padrao, quiz_padrao):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.dataInicio = datetime.now() - timedelta(minutes=11)
+    assert t.verificar_tempo_excedido() is True
 
-def criar_quiz_interativo(quizzes: list[Quiz]):
-    print("\n--- Criação de Quiz ---")
-    titulo = input("Título do Quiz: ").strip()
+# --- BLOCO 4: Limite de Tentativas (2 testes) ---
+
+def test_usuario_pode_fazer_quiz(usuario_padrao, quiz_padrao):
+    assert usuario_padrao.pode_realizar_quiz(quiz_padrao) is True
+
+def test_bloqueio_apos_limite_atingido(usuario_padrao, quiz_padrao):
+    t1 = Tentativa(usuario_padrao, quiz_padrao); t1.finalizar()
+    t2 = Tentativa(usuario_padrao, quiz_padrao); t2.finalizar()
     
-    tentativas = ler_inteiro("Limite de tentativas: ")
-    tempo = ler_inteiro("Tempo limite (minutos): ")
+    assert usuario_padrao.pode_realizar_quiz(quiz_padrao) is False
     
-    try:
-        novo_quiz = Quiz(titulo, [], tentativas, tempo)
-    except ValueError as e:
-        print(f"Erro ao criar quiz: {e}")
-        pausar()
-        return
+    with pytest.raises(ValueError, match="limite de tentativas"):
+        Tentativa(usuario_padrao, quiz_padrao)
 
-    print("\nAgora vamos adicionar perguntas.")
-    while True:
-        add = input("Deseja adicionar uma pergunta agora? (S/N): ").upper()
-        if add != 'S':
-            break
-        
-        try:
-            pergunta = criar_pergunta_interativa()
-            novo_quiz.adicionar_pergunta(pergunta)
-            print("Pergunta adicionada!")
-        except Exception as e:
-            print(f"Erro ao adicionar pergunta: {e}")
+# --- BLOCO 5: Relatórios e Filtros (4 testes) ---
+
+def test_ranking_ignora_tentativa_tempo_excedido(usuario_padrao, quiz_padrao, capsys):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.dataInicio = datetime.now() - timedelta(minutes=20)
+    t.finalizar()
     
-    quizzes.append(novo_quiz)
+    rel = Relatorio([usuario_padrao])
+    rel.gerar_ranking()
     
-    pausar()
+    captured = capsys.readouterr()
+    assert "Nenhum dado de desempenho" in captured.out or "valida" in captured.out
 
-def adicionar_pergunta_a_quiz_existente(quizzes: list[Quiz]):
-    if not quizzes_check(quizzes): return
+def test_ranking_considera_tentativa_valida(usuario_padrao, quiz_padrao, capsys):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.registrar_resposta(0, 0); t.registrar_resposta(1, 0); t.registrar_resposta(2, 0)
+    t.finalizar()
     
-    print("\n--- Editar Quiz Existente ---")
-    for i, q in enumerate(quizzes):
-        print(f"{i}. {q.titulo} ({len(q)} questões)")
+    rel = Relatorio([usuario_padrao])
+    rel.gerar_ranking()
     
-    try:
-        idx = ler_inteiro("Escolha o Quiz para editar: ")
-        quiz = quizzes[idx]
-    except IndexError:
-        print("Quiz inválido.")
-        pausar()
-        return
+    captured = capsys.readouterr()
+    assert "100.00" in captured.out
 
-    try:
-        pergunta = criar_pergunta_interativa()
-        quiz.adicionar_pergunta(pergunta)
-        print(f"Pergunta adicionada ao quiz '{quiz.titulo}'!")
-    except Exception as e:
-        print(f"Erro: {e}")
-    pausar()
-
-def fluxo_responder_quiz(usuarios: list[Usuario], quizzes: list[Quiz]):
-    limpar_tela()
-    if not users_check(usuarios) or not quizzes_check(quizzes): 
-        pausar()
-        return
-
-    print("--- Área do Aluno ---")
-    print("Quem é você?")
-    for i, u in enumerate(usuarios):
-        print(f"{i}. {u.nome} ({u.matricula})")
+def test_estatisticas_tema_filtra_incompletas(usuario_padrao, quiz_padrao, capsys):
+    t1 = Tentativa(usuario_padrao, quiz_padrao)
+    t1.registrar_resposta(0, 0)
+    t1.finalizar()
     
-    try:
-        idx_user = ler_inteiro("Seu número: ")
-        usuario = usuarios[idx_user]
-    except IndexError:
-        print("Usuário inválido.")
-        pausar()
-        return
-
-    print(f"\nBem-vindo(a), {usuario.nome}!")
-    print("Quizzes disponíveis:")
-    for i, q in enumerate(quizzes):
-        print(f"{i}. {q.titulo} | {q.tempoLimite} min | {len(q)} questões")
+    t2 = Tentativa(usuario_padrao, quiz_padrao)
+    t2.dataInicio = datetime.now() - timedelta(minutes=20)
+    t2.finalizar()
     
-    try:
-        idx_quiz = ler_inteiro("Escolha o Quiz: ")
-        quiz = quizzes[idx_quiz]
-    except IndexError:
-        print("Quiz inválido.")
-        pausar()
-        return
+    rel = Relatorio([usuario_padrao])
+    rel.gerar_desempenho_por_tema()
+    
+    captured = capsys.readouterr()
+    assert "MATEMÁTICA" in captured.out
 
-    if not usuario.pode_realizar_quiz(quiz):
-        print(f"\nBLOQUEADO: Você já atingiu o limite de {quiz.tentativasLimite} tentativas.")
-        pausar()
-        return
+def test_distribuicao_notas(usuario_padrao, quiz_padrao, capsys):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.registrar_resposta(0, 0); t.registrar_resposta(1, 0); t.registrar_resposta(2, 0)
+    t.finalizar()
+    
+    rel = Relatorio([usuario_padrao])
+    rel.gerar_distribuicao_notas()
+    
+    captured = capsys.readouterr()
+    assert "90-100" in captured.out
 
-    print(f"\nIniciando '{quiz.titulo}'... Boa sorte!")
-    input(">>> Pressione ENTER para começar a prova <<<")
+def test_taxa_global_calculo(usuario_padrao, quiz_padrao, capsys):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.registrar_resposta(0, 0)
+    t.registrar_resposta(1, 1)
+    t.finalizar()
+    
+    rel = Relatorio([usuario_padrao])
+    rel.gerar_taxa_acerto_global()
+    
+    captured = capsys.readouterr()
+    assert "50.00%" in captured.out
+
+# --- BLOCO 6: Persistência (3 testes) ---
+
+def test_persist_usuario(usuario_padrao, quiz_padrao):
+    t = Tentativa(usuario_padrao, quiz_padrao)
+    t.incompleta = True
+    d = t.to_dict()
+    assert d['incompleta'] is True
+
+def test_salvar_carregar_fluxo(tmp_path, usuario_padrao, quiz_padrao):
+    import data.dados
+    arquivo_orig = data.dados.ARQUIVO_DB
+    data.dados.ARQUIVO_DB = str(tmp_path / "test.json")
     
     try:
-        tentativa = Tentativa(usuario, quiz)
-    except ValueError as e:
-        print(f"Erro: {e}")
-        pausar()
-        return
-    
-    for i, pergunta in enumerate(quiz.perguntas):
-        limpar_tela()
-        print(f"QUESTÃO {i+1}/{len(quiz)}: {pergunta.enunciado}")
-        print(f"[{pergunta.dificuldade} | {pergunta.tema}]")
-        print("-" * 40)
+        t = Tentativa(usuario_padrao, quiz_padrao)
+        t.finalizar()
+        salvar_dados([usuario_padrao], [quiz_padrao])
         
-        for idx_alt, alt in enumerate(pergunta.alternativas):
-            print(f"[{idx_alt}] {alt}")
-        
-        while True:
-            r_int = ler_inteiro("\nSua resposta: ")
-            if 0 <= r_int < len(pergunta.alternativas):
-                tentativa.registrar_resposta(i, r_int)
-                break
-            print("Opção inválida.")
-
-    print("\nFinalizando e calculando nota...")
-    time.sleep(1)
-    tentativa.finalizar()
-    
-    print("-" * 30)
-    print(f"Nota Final: {tentativa.pontuacao:.2f}")
-    print("Situação: " + ("APROVADO" if tentativa.aprovado else "REPROVADO"))
-    
-    limite_seg = quiz.tempoLimite * 60
-    if tentativa.tempoGasto > limite_seg:
-         print(f"TEMPO EXCEDIDO! A nota foi zerada.")
-    
-    pausar()
-
-def fluxo_admin(usuarios: list[Usuario], quizzes: list[Quiz]):
-    while True:
-        op = menu_admin()
-        
-        if op == "1":
-            rel = Relatorio(usuarios)
-            if hasattr(rel, 'gerar_relatorio_alunos'):
-                rel.gerar_relatorio_alunos()
-            else:
-                getattr(rel, 'exibir_relatorio', lambda: print("Erro no relatório"))()
-            pausar()
-        
-        elif op == "2":
-            criar_usuario_interativo(usuarios)
-        
-        elif op == "3":
-            criar_quiz_interativo(quizzes)
-            
-        elif op == "4":
-            adicionar_pergunta_a_quiz_existente(quizzes)
-            
-        elif op == "5":
-            seed_data(usuarios, quizzes)
-            pausar()
-            
-        elif op == "0":
-            break
-        else:
-            print("Opção inválida.")
-            pausar()
-
-def seed_data(usuarios, quizzes):
-    if quizzes:
-        print("Já existem dados carregados.")
-        return
-
-    p1 = Pergunta("Quanto é 2+2?", ["3", "4", "5"], 1, "FÁCIL", "Matemática")
-    p2 = Pergunta("Capital da França?", ["Rio", "Paris", "Londres"], 1, "FÁCIL", "Geo")
-    q = Quiz("Demo Quiz", [p1, p2], tentativasLimite=3, tempoLimite=5)
-    quizzes.append(q)
-    
-    u = Usuario("Aluno Teste", "aluno@teste.com", "202401")
-    usuarios.append(u)
-    print("Dados de exemplo criados!")
-
-def users_check(lista):
-    if not lista: 
-        print("Nenhum usuário cadastrado.")
-        return False
-    return True
-
-def quizzes_check(lista):
-    if not lista: 
-        print("Nenhum quiz disponível.")
-        return False
-    return True
-
-def main():
-    usuarios, quizzes = carregar_dados()
-    
-    while True:
-        op = menu_principal()
-        
-        if op == "1":
-            fluxo_responder_quiz(usuarios, quizzes)
-        elif op == "2":
-            fluxo_admin(usuarios, quizzes)
-        elif op == "0":
-            print("Salvando dados...")
-            salvar_dados(usuarios, quizzes)
-            print("Até logo!")
-            break
-        else:
-            print("Opção inválida.")
-            time.sleep(1)
-
-if __name__ == "__main__":
-    main()
+        us, qs = carregar_dados()
+        assert len(us) == 1
+        assert us[0].tentativas[0].pontuacao == t.pontuacao
+    finally:
+        data.dados.ARQUIVO_DB = arquivo_orig

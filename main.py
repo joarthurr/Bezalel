@@ -1,11 +1,18 @@
 import os
 import time
+import sys
 from data.dados import carregar_dados, salvar_dados
 from modules.Relatorio import Relatorio
 from modules.Tentativa import Tentativa
 from modules.Usuario import Usuario
 from modules.Quiz import Quiz
 from modules.Pergunta import Pergunta
+from config.config import Config
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 def limpar_tela():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -14,18 +21,66 @@ def pausar():
     input("\nPressione ENTER para continuar...")
 
 def ler_inteiro(mensagem: str):
-    """Lê um numero inteiro de forma segura."""
+    """Funcao padrao para menus que nao precisam de timer."""
     while True:
         try:
             return int(input(mensagem))
         except ValueError:
             print("Entrada invalida. Digite um numero inteiro.")
 
+def ler_input_com_tempo(mensagem: str, tentativa: Tentativa) -> str | None:
+    """Retorna a string digitada ou None se o tempo acabar."""
+    print(mensagem, end='', flush=True)
+    
+    if msvcrt is None:
+        return input()
+
+    entrada = []
+    
+    while True:
+        if tentativa.verificar_tempo_excedido():
+            print("\n\n!!! TEMPO ESGOTADO !!!")
+            return None
+
+        if msvcrt.kbhit():
+            char = msvcrt.getwche()
+            
+            if char in ('\r', '\n'):
+                print()
+                return "".join(entrada)
+            
+            elif char == '\b':
+                if entrada:
+                    entrada.pop()
+                    sys.stdout.write(' \b')
+                    sys.stdout.flush()
+            
+            else:
+                entrada.append(char)
+        
+        time.sleep(0.05)
+
+def ler_inteiro_com_tempo(mensagem: str, tentativa: Tentativa) -> int:
+    """Wrapper para converter o input temporal em inteiro."""
+    while True:
+        if tentativa.verificar_tempo_excedido():
+            return -1
+            
+        resultado = ler_input_com_tempo(mensagem, tentativa)
+        
+        if resultado is None:
+            return -1
+            
+        try:
+            return int(resultado)
+        except ValueError:
+            print("Entrada invalida. Digite um numero.")
+
 def menu_principal():
     limpar_tela()
-    print("="*30)
-    print("   Sistema de Quiz Educacional - Bezalel   ")
-    print("="*30)
+    print("="*40)
+    print("      BEZALEL QUIZ SYSTEM v1.0")
+    print("="*40)
     print("1. Area do Usuario (Responder)")
     print("2. Area Administrativa")
     print("0. Sair e Salvar")
@@ -33,19 +88,22 @@ def menu_principal():
 
 def menu_admin():
     limpar_tela()
-    print("--- Menu Admin ---\n")
-    print("1. Relatorio de Usuarios (Basico)")
+    print("--- MENU ADMINISTRATIVO ---")
+    print("1. Relatorio de Usuarios (Listagem)")
     print("2. Ranking de Desempenho")
-    print("3. Cadastrar Novo Usuario")
-    print("4. Criar Novo Quiz")
-    print("5. Adicionar Pergunta a Quiz Existente")
-    print("6. Gerar Dados de Teste (Seed)")
+    print("3. Estatisticas por Tema")
+    print("4. Taxa de Acerto Global")
+    print("5. Distribuicao de Notas")
+    print("6. Cadastrar Novo Usuario")
+    print("7. Criar Novo Quiz")
+    print("8. Adicionar Pergunta a Quiz Existente")
+    print("9. Gerar Dados de Teste (Seed)")
     print("0. Voltar")
     return input("\nEscolha uma opcao: ")
 
 def criar_usuario_interativo(usuarios: list[Usuario]):
     print("\n--- Cadastro de Usuario ---")
-    nome = input("Nome: ").strip()
+    nome = input("Nome completo: ").strip()
     email = input("E-mail: ").strip()
     matricula = input("Matricula: ").strip()
     
@@ -73,14 +131,10 @@ def criar_pergunta_interativa() -> Pergunta:
     dificuldade = input(">> ").strip().upper()
 
     mapa = {
-        "FACIL": "fácil",
-        "FÁCIL": "fácil",
-        "MEDIO": "médio",
-        "MÉDIO": "médio",
-        "DIFICIL": "difícil",
-        "DIFÍCIL": "difícil"
+        "FACIL": "fácil", "FÁCIL": "fácil",
+        "MEDIO": "médio", "MÉDIO": "médio",
+        "DIFICIL": "difícil", "DIFÍCIL": "difícil"
     }
-
     dificuldade = mapa.get(dificuldade, dificuldade.lower())
     
     print("\nCadastre as alternativas (Minimo 3, Maximo 5).")
@@ -109,11 +163,18 @@ def criar_pergunta_interativa() -> Pergunta:
     return Pergunta(enunciado, alternativas, idx, dificuldade, tema)
 
 def criar_quiz_interativo(quizzes: list[Quiz]):
+    config = Config()
+    
     print("\n--- Criacao de Quiz ---")
     titulo = input("Titulo do Quiz: ").strip()
     
-    tentativas = ler_inteiro("Limite de tentativas: ")
-    tempo = ler_inteiro("Tempo limite (minutos): ")
+    print(f"Limite de tentativas (Padrao: {config.tentativas_padrao}):")
+    entrada_tent = input(">> ").strip()
+    tentativas = int(entrada_tent) if entrada_tent else config.tentativas_padrao
+    
+    print(f"Tempo limite em minutos (Padrao: {config.tempo_padrao}):")
+    entrada_tempo = input(">> ").strip()
+    tempo = int(entrada_tempo) if entrada_tempo else config.tempo_padrao
     
     try:
         novo_quiz = Quiz(titulo, [], tentativas, tempo)
@@ -125,23 +186,15 @@ def criar_quiz_interativo(quizzes: list[Quiz]):
     print("\nAgora vamos adicionar perguntas.")
     while True:
         add = input("Deseja adicionar uma pergunta agora? (S/N): ").upper()
-        if add != 'S':
-            break
-        
+        if add != 'S': break
         try:
             pergunta = criar_pergunta_interativa()
             novo_quiz.adicionar_pergunta(pergunta)
             print("Pergunta adicionada!")
         except Exception as e:
-            print(f"Erro ao adicionar pergunta: {e}")
-    
-    if len(novo_quiz) > 0:
-        quizzes.append(novo_quiz)
-        print(f"Quiz '{titulo}' criado com {len(novo_quiz)} perguntas!")
-    else:
-        print("Aviso: Quiz criado sem perguntas (Rascunho).")
-        quizzes.append(novo_quiz)
-    
+            print(f"Erro: {e}")
+
+    quizzes.append(novo_quiz)
     pausar()
 
 def adicionar_pergunta_a_quiz_existente(quizzes: list[Quiz]):
@@ -204,7 +257,7 @@ def fluxo_responder_quiz(usuarios: list[Usuario], quizzes: list[Quiz]):
         pausar()
         return
 
-    print(f"\nIniciando '{quiz.titulo}'... Boa sorte!")
+    print(f"\nIniciando '{quiz.titulo}'... Voce tem {quiz.tempoLimite} minutos.")
     input(">>> Pressione ENTER para comecar a prova <<<")
     
     try:
@@ -214,7 +267,16 @@ def fluxo_responder_quiz(usuarios: list[Usuario], quizzes: list[Quiz]):
         pausar()
         return
     
+    tempo_esgotado = False
+    
     for i, pergunta in enumerate(quiz.perguntas):
+        if tentativa.verificar_tempo_excedido():
+            print("\nTEMPO ACABADO! O quiz foi encerrado automaticamente.")
+            tentativa.finalizar()
+            pausar()
+            return
+
+            
         limpar_tela()
         print(f"QUESTAO {i+1}/{len(quiz)}: {pergunta.enunciado}")
         print(f"[{pergunta.dificuldade} | {pergunta.tema}]")
@@ -224,59 +286,67 @@ def fluxo_responder_quiz(usuarios: list[Usuario], quizzes: list[Quiz]):
             print(f"[{idx_alt}] {alt}")
         
         while True:
-            r_int = ler_inteiro("\nSua resposta: ")
+            r_int = ler_inteiro_com_tempo("\nSua resposta: ", tentativa)
+            
+            if r_int == -1 and tentativa.verificar_tempo_excedido():
+                print("\nTEMPO ACABADO! O quiz foi encerrado automaticamente.")
+                tentativa.finalizar()
+                pausar()
+                return
+
+            
             if 0 <= r_int < len(pergunta.alternativas):
                 tentativa.registrar_resposta(i, r_int)
                 break
-            print("Opcao invalida.")
+            
+            if not tempo_esgotado:
+                print("Opcao invalida.")
+        
+        if tempo_esgotado:
+            break
 
-    print("\nFinalizando e calculando nota...")
-    time.sleep(1)
+    print("\nFinalizando...")
     tentativa.finalizar()
     
     print("-" * 30)
+    
+    if tempo_esgotado or tentativa.tempoGasto > quiz.tempoLimite*60:
+         print(f"TEMPO ACABADO! O quiz foi encerrado e a nota zerada.")
+    
     print(f"Nota Final: {tentativa.pontuacao:.2f}")
     print("Situacao: " + ("APROVADO" if tentativa.aprovado else "REPROVADO"))
-    
-    limite_seg = quiz.tempoLimite * 60
-    if tentativa.tempoGasto > limite_seg:
-         print(f"TEMPO EXCEDIDO! A nota foi zerada.")
     
     pausar()
 
 def fluxo_admin(usuarios: list[Usuario], quizzes: list[Quiz]):
     while True:
         op = menu_admin()
+        rel = Relatorio(usuarios)
         
         if op == "1":
-            rel = Relatorio(usuarios)
-            if hasattr(rel, 'gerar_relatorio_usuarios'):
-                rel.gerar_relatorio_usuarios()
-            else:
-                getattr(rel, 'exibir_relatorio', lambda: print("Erro no relatorio"))()
+            rel.gerar_relatorio_usuarios()
             pausar()
-        
         elif op == "2":
-            rel = Relatorio(usuarios)
-            if hasattr(rel, 'gerar_ranking'):
-                rel.gerar_ranking()
-            else:
-                print("Metodo de ranking nao encontrado.")
+            rel.gerar_ranking()
             pausar()
-        
         elif op == "3":
-            criar_usuario_interativo(usuarios)
-        
+            rel.gerar_desempenho_por_tema()
+            pausar()
         elif op == "4":
-            criar_quiz_interativo(quizzes)
-            
+            rel.gerar_taxa_acerto_global()
+            pausar()
         elif op == "5":
-            adicionar_pergunta_a_quiz_existente(quizzes)
-            
+            rel.gerar_distribuicao_notas()
+            pausar()
         elif op == "6":
+            criar_usuario_interativo(usuarios)
+        elif op == "7":
+            criar_quiz_interativo(quizzes)
+        elif op == "8":
+            adicionar_pergunta_a_quiz_existente(quizzes)
+        elif op == "9":
             seed_data(usuarios, quizzes)
             pausar()
-            
         elif op == "0":
             break
         else:
@@ -288,9 +358,10 @@ def seed_data(usuarios, quizzes):
         print("Aviso: Ja existem dados carregados.")
         return
 
-    p1 = Pergunta("Quanto e 2+2?", ["3", "4", "5"], 1, "fácil", "Matematica")
-    p2 = Pergunta("Capital da Franca?", ["Rio", "Paris", "Londres"], 1, "fácil", "Geo")
-    q = Quiz("Demo Quiz", [p1, p2], tentativasLimite=3, tempoLimite=5)
+    p1 = Pergunta("Quanto e 2+2?", ["3", "4", "5"], 1, "FACIL", "Matematica")
+    p2 = Pergunta("Capital da Franca?", ["Rio", "Paris", "Londres"], 1, "FACIL", "Geo")
+    p3 = Pergunta("Raiz de 144?", ["10", "11", "12"], 2, "MEDIO", "Matematica")
+    q = Quiz("Demo Quiz", [p1, p2, p3], tentativasLimite=3, tempoLimite=5)
     quizzes.append(q)
     
     u = Usuario("Usuario Teste", "usuario@teste.com", "202401")

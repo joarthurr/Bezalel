@@ -115,3 +115,4 @@ class Quiz:
             tentativasLimite=data.get("tentativasLimite", 3),
             tempoLimite=data.get("tempoLimite", 30)
         )
+    

@@ -26,3 +26,4 @@ def test_salvar_e_carregar_fluxo_completo(setup_banco):
     assert len(quizzes_carregados) == 1
     assert users_carregados[0].nome == "Tester"
     assert quizzes_carregados[0].titulo == "Quiz Teste"
+    

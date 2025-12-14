@@ -58,3 +58,4 @@ class Usuario:
                     nova_tentativa = Tentativa.from_dict(t_data, usuario, quiz)
                     usuario.adicionar_tentativa(nova_tentativa)
         return usuario
+    

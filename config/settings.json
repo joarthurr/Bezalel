@@ -1,0 +1,16 @@
+{
+    "nota_corte_aprovacao": 70.0,
+    "quiz_tempo_padrao_min": 10,
+    "quiz_tentativas_padrao": 2,
+    "pesos_dificuldade": {
+        "facil": 1,
+        "medio": 2,
+        "dificil": 3,
+        "fácil": 1,
+        "médio": 2,
+        "difícil": 3,
+        "FACIL": 1,
+        "MEDIO": 2,
+        "DIFICIL": 3
+    }
+}

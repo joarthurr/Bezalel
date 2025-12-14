@@ -83,3 +83,4 @@ def test_validacao_tentativas_e_tempo():
 
     with pytest.raises(TypeError):
         Quiz("Quiz", [p1], 3, "um minuto")
+        
